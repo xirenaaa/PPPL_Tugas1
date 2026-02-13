@@ -1,0 +1,441 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[indonesian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{booktabs}
+
+\geometry{
+    left=3cm,
+    right=3cm,
+    top=3cm,
+    bottom=3cm
+}
+
+% Konfigurasi untuk code listing
+\lstset{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{gray}\itshape,
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    numbersep=5pt,
+    backgroundcolor=\color{white},
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    frame=single,
+    tabsize=2,
+    captionpos=b,
+    breaklines=true,
+    breakatwhitespace=false,
+    escapeinside={(*@}{@*)},
+    language=Java
+}
+
+\title{\textbf{Laporan Implementasi Aplikasi Wallet\\dengan Pendekatan Test-Driven Development}}
+\author{Tugas Praktikum Pengembangan Perangkat Lunak}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Pendahuluan}
+
+\subsection{Latar Belakang}
+Dalam pengembangan perangkat lunak modern, kualitas kode dan keandalan sistem merupakan aspek fundamental yang harus diperhatikan. Salah satu pendekatan yang telah terbukti efektif dalam memastikan kualitas perangkat lunak adalah penerapan \textit{Test-Driven Development} (TDD) dan \textit{unit testing}. Dokumen ini menyajikan implementasi aplikasi \textit{Wallet} (dompet digital) yang dikembangkan menggunakan bahasa pemrograman Java dengan menerapkan prinsip-prinsip TDD.
+
+\subsection{Tujuan}
+Tujuan dari implementasi ini adalah:
+\begin{enumerate}
+    \item Mengembangkan sistem manajemen dompet digital yang dapat menyimpan informasi pemilik, kartu, dan uang tunai
+    \item Menerapkan prinsip-prinsip \textit{object-oriented programming} (OOP) dalam implementasi
+    \item Mengimplementasikan \textit{unit testing} yang komprehensif untuk memastikan kualitas kode
+    \item Memvalidasi fungsionalitas sistem melalui pengujian otomatis
+\end{enumerate}
+
+\subsection{Ruang Lingkup}
+Sistem yang dikembangkan mencakup:
+\begin{itemize}
+    \item Kelas \texttt{Wallet} sebagai representasi dompet digital
+    \item Operasi pengelolaan pemilik dompet
+    \item Operasi pengelolaan kartu (menambah dan mengambil)
+    \item Operasi pengelolaan uang tunai (menambah, mengambil, dan menghitung total)
+    \item \textit{Test suite} komprehensif dengan 24 test cases
+\end{itemize}
+
+\section{Desain Sistem}
+
+\subsection{Arsitektur Aplikasi}
+Aplikasi dibangun menggunakan arsitektur sederhana dengan pemisahan yang jelas antara kode produksi dan kode pengujian. Struktur proyek mengikuti konvensi Maven standar:
+
+\begin{verbatim}
+src/
+├── main/java/org/example/
+│   ├── Wallet.java      # Kelas utama aplikasi
+│   └── Main.java        # Entry point aplikasi
+└── test/java/org/example/
+    └── WalletTest.java  # Test suite
+\end{verbatim}
+
+\subsection{Spesifikasi Kelas Wallet}
+Kelas \texttt{Wallet} dirancang dengan tiga atribut utama:
+\begin{itemize}
+    \item \texttt{owner}: String yang menyimpan nama pemilik dompet
+    \item \texttt{cards}: List yang menyimpan koleksi kartu-kartu
+    \item \texttt{cashList}: List yang menyimpan denominasi uang tunai
+\end{itemize}
+
+Diagram kelas dapat digambarkan sebagai berikut:
+\begin{center}
+\begin{tabular}{|l|}
+\hline
+\textbf{Wallet} \\
+\hline
+- owner: String \\
+- cards: List<String> \\
+- cashList: List<Integer> \\
+\hline
++ Wallet() \\
++ setOwner(owner: String): void \\
++ getOwner(): String \\
++ addCard(card: String): void \\
++ takeCard(card: String): String \\
++ getCards(): List<String> \\
++ addCash(amount: int): void \\
++ takeCash(amount: int): Integer \\
++ getCashList(): List<Integer> \\
++ getTotalCash(): int \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Implementasi}
+
+\subsection{Kelas Wallet}
+Implementasi kelas \texttt{Wallet} mengikuti prinsip enkapsulasi dengan semua atribut bersifat \textit{private} dan akses dilakukan melalui metode publik.
+
+\subsubsection{Konstruktor}
+Konstruktor melakukan inisialisasi objek dengan membuat instance baru dari \texttt{ArrayList} untuk menyimpan kartu dan uang tunai:
+
+\begin{lstlisting}[caption=Konstruktor kelas Wallet]
+public Wallet() {
+    this.cards = new ArrayList<>();
+    this.cashList = new ArrayList<>();
+}
+\end{lstlisting}
+
+Pendekatan ini memastikan bahwa setiap objek \texttt{Wallet} memiliki koleksi yang independen, mencegah \textit{shared state} antar instance.
+
+\subsubsection{Manajemen Pemilik}
+Operasi terkait pemilik dompet diimplementasikan melalui setter dan getter standar:
+
+\begin{lstlisting}[caption=Metode manajemen pemilik]
+public void setOwner(String owner) {
+    this.owner = owner;
+}
+
+public String getOwner() {
+    return owner;
+}
+\end{lstlisting}
+
+\subsubsection{Manajemen Kartu}
+Sistem menyediakan tiga operasi untuk pengelolaan kartu:
+
+\paragraph{Menambah Kartu}
+Metode \texttt{addCard} melakukan validasi untuk memastikan hanya kartu yang valid yang ditambahkan:
+
+\begin{lstlisting}[caption=Metode menambah kartu]
+public void addCard(String card) {
+    if (card != null && !card.isEmpty()) {
+        cards.add(card);
+    }
+}
+\end{lstlisting}
+
+Validasi ini mencegah penambahan nilai \texttt{null} atau string kosong, memastikan integritas data.
+
+\paragraph{Mengambil Kartu}
+Metode \texttt{takeCard} mengimplementasikan operasi pengambilan kartu dengan pengecekan keberadaan:
+
+\begin{lstlisting}[caption=Metode mengambil kartu]
+public String takeCard(String card) {
+    if (cards.contains(card)) {
+        cards.remove(card);
+        return card;
+    }
+    return null;
+}
+\end{lstlisting}
+
+Metode ini mengembalikan kartu yang diambil jika ditemukan, atau \texttt{null} jika tidak ada.
+
+\paragraph{Mendapatkan Daftar Kartu}
+Metode \texttt{getCards} mengembalikan salinan baru dari list kartu:
+
+\begin{lstlisting}[caption=Metode mendapatkan daftar kartu]
+public List<String> getCards() {
+    return new ArrayList<>(cards);
+}
+\end{lstlisting}
+
+Pendekatan \textit{defensive copying} ini mencegah modifikasi eksternal terhadap state internal objek, menjaga prinsip enkapsulasi.
+
+\subsubsection{Manajemen Uang Tunai}
+Operasi pengelolaan uang tunai dirancang dengan pola yang serupa dengan pengelolaan kartu.
+
+\paragraph{Menambah Uang}
+Metode \texttt{addCash} memvalidasi bahwa hanya jumlah positif yang dapat ditambahkan:
+
+\begin{lstlisting}[caption=Metode menambah uang tunai]
+public void addCash(int amount) {
+    if (amount > 0) {
+        cashList.add(amount);
+    }
+}
+\end{lstlisting}
+
+\paragraph{Mengambil Uang}
+Metode \texttt{takeCash} mengimplementasikan operasi pengambilan dengan penanganan tipe yang tepat:
+
+\begin{lstlisting}[caption=Metode mengambil uang tunai]
+public Integer takeCash(int amount) {
+    if (cashList.contains(amount)) {
+        cashList.remove(Integer.valueOf(amount));
+        return amount;
+    }
+    return null;
+}
+\end{lstlisting}
+
+Penggunaan \texttt{Integer.valueOf()} penting untuk memastikan penghapusan berdasarkan nilai, bukan indeks.
+
+\paragraph{Mendapatkan Daftar Uang}
+Metode \texttt{getCashList} menerapkan \textit{defensive copying}:
+
+\begin{lstlisting}[caption=Metode mendapatkan daftar uang tunai]
+public List<Integer> getCashList() {
+    return new ArrayList<>(cashList);
+}
+\end{lstlisting}
+
+\paragraph{Menghitung Total Uang}
+Metode \texttt{getTotalCash} melakukan agregasi nilai:
+
+\begin{lstlisting}[caption=Metode menghitung total uang tunai]
+public int getTotalCash() {
+    int total = 0;
+    for (int cash : cashList) {
+        total += cash;
+    }
+    return total;
+}
+\end{lstlisting}
+
+Implementasi menggunakan iterasi eksplisit untuk clarity dan kompatibilitas.
+
+\section{Strategi Pengujian}
+
+\subsection{Framework dan Metodologi}
+Pengujian diimplementasikan menggunakan JUnit 4.13.2, framework standar industri untuk unit testing dalam ekosistem Java. Strategi pengujian mengikuti prinsip-prinsip:
+\begin{itemize}
+    \item \textbf{Isolasi}: Setiap test case bersifat independen
+    \item \textbf{Repeatability}: Hasil konsisten pada setiap eksekusi
+    \item \textbf{Coverage}: Mencakup skenario normal dan edge cases
+    \item \textbf{Clarity}: Nama test yang deskriptif dan struktur yang jelas
+\end{itemize}
+
+\subsection{Struktur Test Suite}
+Test suite terdiri dari 24 test cases yang diorganisir dalam kategori-kategori fungsional:
+
+\subsubsection{Pengujian Manajemen Pemilik (3 test cases)}
+\begin{itemize}
+    \item \texttt{testSetOwner}: Verifikasi setter dan getter pemilik
+    \item \texttt{testOwnerInitiallyNull}: Validasi state awal
+    \item \texttt{testSetOwnerNotNull}: Konfirmasi non-null setelah set
+\end{itemize}
+
+\subsubsection{Pengujian Operasi Kartu (7 test cases)}
+Test cases mencakup:
+\begin{itemize}
+    \item Penambahan kartu tunggal dan multipel
+    \item Validasi input (null dan empty string)
+    \item Pengambilan kartu (ada dan tidak ada)
+    \item Pengambilan dari dompet kosong
+\end{itemize}
+
+\subsubsection{Pengujian Operasi Uang Tunai (9 test cases)}
+Pengujian komprehensif meliputi:
+\begin{itemize}
+    \item Penambahan tunai (valid, zero, negatif)
+    \item Pengambilan tunai (ada, tidak ada, dari dompet kosong)
+    \item Perhitungan total (dengan data, kosong, setelah pengambilan)
+\end{itemize}
+
+\subsubsection{Pengujian Skenario Terintegrasi (5 test cases)}
+Test cases tingkat tinggi yang memvalidasi:
+\begin{itemize}
+    \item Kombinasi operasi pemilik, kartu, dan tunai
+    \item Independensi list yang dikembalikan
+    \item Identitas objek yang dikembalikan
+    \item Independensi antar instance Wallet
+\end{itemize}
+
+\subsection{Contoh Implementasi Test Case}
+Berikut adalah contoh implementasi test case yang mendemonstrasikan best practices:
+
+\begin{lstlisting}[caption=Contoh test case dengan multiple assertions]
+@Test
+public void testWalletWithOwnerAndItems() {
+    wallet.setOwner("Rakai");
+    wallet.addCard("KTP");
+    wallet.addCard("SIM");
+    wallet.addCash(100000);
+
+    assertNotNull(wallet.getOwner());
+    assertEquals("Rakai", wallet.getOwner());
+    assertEquals(2, wallet.getCards().size());
+    assertEquals(100000, wallet.getTotalCash());
+}
+\end{lstlisting}
+
+Test case ini memvalidasi integrasi multipel operasi dalam satu skenario penggunaan yang realistis.
+
+\subsection{Pengujian Defensive Copying}
+Aspek penting dari implementasi adalah pencegahan modifikasi state internal:
+
+\begin{lstlisting}[caption=Test case untuk defensive copying]
+@Test
+public void testCardListIndependence() {
+    wallet.addCard("KTP");
+    wallet.getCards().add("SIM"); // modifikasi list yang dikembalikan
+    assertEquals(1, wallet.getCards().size()); // list asli tidak berubah
+}
+\end{lstlisting}
+
+Test ini memverifikasi bahwa modifikasi terhadap list yang dikembalikan tidak mempengaruhi state internal objek.
+
+\section{Cara Kerja Sistem}
+
+\subsection{Alur Eksekusi Umum}
+Alur penggunaan sistem dapat digambarkan sebagai berikut:
+
+\begin{enumerate}
+    \item \textbf{Inisialisasi}: Objek \texttt{Wallet} dibuat dengan konstruktor, yang menginisialisasi koleksi kosong
+    \item \textbf{Konfigurasi Pemilik}: Nama pemilik dapat di-set menggunakan \texttt{setOwner()}
+    \item \textbf{Operasi Kartu}:
+    \begin{itemize}
+        \item Kartu ditambahkan dengan \texttt{addCard()}, yang melakukan validasi
+        \item Kartu diambil dengan \texttt{takeCard()}, yang mengembalikan kartu atau null
+        \item Daftar kartu dapat diakses dengan \texttt{getCards()}
+    \end{itemize}
+    \item \textbf{Operasi Uang Tunai}:
+    \begin{itemize}
+        \item Uang ditambahkan dengan \texttt{addCash()}, hanya menerima nilai positif
+        \item Uang diambil dengan \texttt{takeCash()}, berdasarkan denominasi spesifik
+        \item Total dapat dihitung dengan \texttt{getTotalCash()}
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Mekanisme Validasi Input}
+Sistem mengimplementasikan validasi pada titik-titik kritis:
+
+\begin{itemize}
+    \item \textbf{Validasi String}: Pengecekan \texttt{null} dan \texttt{isEmpty()} pada operasi kartu
+    \item \textbf{Validasi Numerik}: Pengecekan nilai positif pada operasi uang tunai
+    \item \textbf{Validasi Keberadaan}: Pengecekan \texttt{contains()} sebelum operasi removal
+\end{itemize}
+
+\subsection{Mekanisme Enkapsulasi}
+Enkapsulasi dijaga melalui beberapa strategi:
+
+\begin{enumerate}
+    \item \textbf{Private Attributes}: Semua field bersifat private
+    \item \textbf{Defensive Copying}: Metode getter mengembalikan salinan baru
+    \item \textbf{Controlled Access}: Semua akses melalui metode publik yang tervalidasi
+\end{enumerate}
+
+\section{Analisis dan Evaluasi}
+
+\subsection{Kelebihan Implementasi}
+\begin{enumerate}
+    \item \textbf{Robustness}: Validasi input mencegah state invalid
+    \item \textbf{Encapsulation}: Defensive copying menjaga integritas data
+    \item \textbf{Testability}: Desain yang memudahkan unit testing
+    \item \textbf{Maintainability}: Kode yang bersih dan terorganisir dengan baik
+    \item \textbf{Coverage}: Test suite yang komprehensif dengan 24 test cases
+\end{enumerate}
+
+\subsection{Area Pengembangan Potensial}
+\begin{enumerate}
+    \item \textbf{Persistensi Data}: Implementasi penyimpanan ke database atau file
+    \item \textbf{Transaksi}: Penambahan log transaksi untuk audit trail
+    \item \textbf{Validasi Lanjutan}: Validasi format kartu (misalnya, nomor KTP)
+    \item \textbf{Mata Uang}: Support untuk multiple currencies
+    \item \textbf{Keamanan}: Enkripsi data sensitif
+    \item \textbf{Concurrency}: Thread-safety untuk akses concurrent
+\end{enumerate}
+
+\subsection{Metrics dan Coverage}
+Dengan 24 test cases yang mencakup:
+\begin{itemize}
+    \item Semua metode publik
+    \item Happy path dan edge cases
+    \item Skenario error handling
+    \item Integrasi antar operasi
+\end{itemize}
+
+Implementasi ini mencapai coverage yang tinggi dan memberikan confidence yang kuat terhadap kualitas kode.
+
+\section{Kesimpulan}
+
+\subsection{Ringkasan}
+Implementasi aplikasi Wallet telah berhasil mendemonstrasikan penerapan best practices dalam pengembangan perangkat lunak, termasuk:
+\begin{itemize}
+    \item Penerapan prinsip OOP (encapsulation, data hiding)
+    \item Implementasi defensive programming
+    \item Test-driven development dengan coverage komprehensif
+    \item Clean code dengan naming yang descriptive
+\end{itemize}
+
+\subsection{Pembelajaran}
+Proyek ini mengilustrasikan pentingnya:
+\begin{enumerate}
+    \item \textbf{Testing}: Unit testing sebagai safety net untuk refactoring dan perubahan
+    \item \textbf{Validation}: Input validation sebagai line of defense pertama
+    \item \textbf{Encapsulation}: Perlindungan state internal untuk maintainability
+    \item \textbf{Documentation}: Kode yang self-documenting melalui naming yang baik
+\end{enumerate}
+
+\subsection{Rekomendasi}
+Untuk pengembangan lebih lanjut, disarankan untuk:
+\begin{enumerate}
+    \item Mengimplementasikan integration testing untuk skenario end-to-end
+    \item Menambahkan performance testing untuk operasi pada skala besar
+    \item Mempertimbangkan penggunaan immutable objects untuk thread-safety
+    \item Mengintegrasikan code coverage tools seperti JaCoCo
+    \item Menerapkan continuous integration untuk automated testing
+\end{enumerate}
+
+\section{Referensi}
+
+\begin{enumerate}
+    \item Oracle. (2024). \textit{Java Platform, Standard Edition Documentation}. 
+    \item Beck, K. (2002). \textit{Test Driven Development: By Example}. Addison-Wesley Professional.
+    \item Bloch, J. (2018). \textit{Effective Java} (3rd ed.). Addison-Wesley Professional.
+    \item JUnit Team. (2024). \textit{JUnit 4 Documentation}. https://junit.org/junit4/
+    \item Martin, R. C. (2008). \textit{Clean Code: A Handbook of Agile Software Craftsmanship}. Prentice Hall.
+\end{enumerate}
+
+\end{document}
