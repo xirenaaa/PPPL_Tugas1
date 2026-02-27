@@ -1,46 +1,68 @@
 package org.example;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.*;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
-public class WalletTest {
+class WalletTest {
+
     private Wallet wallet;
+    private static int testCount;
 
-    @Before
-    public void setUp() {
-        wallet = new Wallet();
+    @BeforeAll
+    static void initAll() {
+        testCount = 0;
+        System.out.println("=== Mulai test WalletTest ===");
     }
 
-    // ==================== Test setOwner ====================
+    @BeforeEach
+    void setUp() {
+        wallet = new Wallet();
+        testCount++;
+        System.out.println("Test #" + testCount + " dimulai");
+    }
+
+    @AfterEach
+    void tearDown() {
+        System.out.println("Test #" + testCount + " selesai");
+        wallet = null;
+    }
+
+    @AfterAll
+    static void tearDownAll() {
+        System.out.println("=== Semua " + testCount + " test selesai ===");
+    }
+
+    // --- setOwner ---
+
     @Test
-    public void testSetOwner() {
+    void testSetOwner() {
         wallet.setOwner("Budi");
         assertEquals("Budi", wallet.getOwner());
     }
 
     @Test
-    public void testOwnerInitiallyNull() {
+    void testOwnerAwalnyaNull() {
         assertNull(wallet.getOwner());
     }
 
     @Test
-    public void testSetOwnerNotNull() {
+    void testOwnerTidakNullSetelahDiSet() {
         wallet.setOwner("Rio");
         assertNotNull(wallet.getOwner());
     }
 
-    // ==================== Test addCard ====================
+    // --- addCard ---
+
     @Test
-    public void testAddCard() {
+    void testAddCard() {
         wallet.addCard("KTP");
         assertEquals(1, wallet.getCards().size());
         assertTrue(wallet.getCards().contains("KTP"));
     }
 
     @Test
-    public void testAddMultipleCards() {
+    void testAddBanyakCard() {
         wallet.addCard("KTP");
         wallet.addCard("SIM");
         wallet.addCard("ATM BCA");
@@ -48,50 +70,52 @@ public class WalletTest {
     }
 
     @Test
-    public void testAddNullCard() {
+    void testAddCardNull() {
         wallet.addCard(null);
         assertEquals(0, wallet.getCards().size());
     }
 
     @Test
-    public void testAddEmptyCard() {
+    void testAddCardKosong() {
         wallet.addCard("");
         assertEquals(0, wallet.getCards().size());
     }
 
-    // ==================== Test takeCard ====================
+    // --- takeCard ---
+
     @Test
-    public void testTakeCard() {
+    void testTakeCard() {
         wallet.addCard("KTP");
         wallet.addCard("SIM");
-        String takenCard = wallet.takeCard("KTP");
-        assertEquals("KTP", takenCard);
+
+        String hasil = wallet.takeCard("KTP");
+
+        assertEquals("KTP", hasil);
         assertFalse(wallet.getCards().contains("KTP"));
     }
 
     @Test
-    public void testTakeCardNotExists() {
+    void testTakeCardYangTidakAda() {
         wallet.addCard("KTP");
-        String takenCard = wallet.takeCard("SIM");
-        assertNull(takenCard);
+        assertNull(wallet.takeCard("SIM"));
     }
 
     @Test
-    public void testTakeCardFromEmptyWallet() {
-        String takenCard = wallet.takeCard("KTP");
-        assertNull(takenCard);
+    void testTakeCardDariWalletKosong() {
+        assertNull(wallet.takeCard("KTP"));
     }
 
-    // ==================== Test addCash ====================
+    // --- addCash ---
+
     @Test
-    public void testAddCash() {
+    void testAddCash() {
         wallet.addCash(50000);
         assertEquals(1, wallet.getCashList().size());
         assertTrue(wallet.getCashList().contains(50000));
     }
 
     @Test
-    public void testAddMultipleCash() {
+    void testAddBanyakCash() {
         wallet.addCash(10000);
         wallet.addCash(20000);
         wallet.addCash(50000);
@@ -99,43 +123,45 @@ public class WalletTest {
     }
 
     @Test
-    public void testAddZeroCash() {
+    void testAddCashNol() {
         wallet.addCash(0);
         assertEquals(0, wallet.getCashList().size());
     }
 
     @Test
-    public void testAddNegativeCash() {
+    void testAddCashNegatif() {
         wallet.addCash(-10000);
         assertEquals(0, wallet.getCashList().size());
     }
 
-    // ==================== Test takeCash ====================
+    // --- takeCash ---
+
     @Test
-    public void testTakeCash() {
+    void testTakeCash() {
         wallet.addCash(50000);
         wallet.addCash(20000);
-        Integer takenCash = wallet.takeCash(50000);
-        assertEquals(Integer.valueOf(50000), takenCash);
+
+        Integer hasil = wallet.takeCash(50000);
+
+        assertEquals(50000, hasil);
         assertFalse(wallet.getCashList().contains(50000));
     }
 
     @Test
-    public void testTakeCashNotExists() {
+    void testTakeCashYangTidakAda() {
         wallet.addCash(50000);
-        Integer takenCash = wallet.takeCash(10000);
-        assertNull(takenCash);
+        assertNull(wallet.takeCash(10000));
     }
 
     @Test
-    public void testTakeCashFromEmptyWallet() {
-        Integer takenCash = wallet.takeCash(50000);
-        assertNull(takenCash);
+    void testTakeCashDariWalletKosong() {
+        assertNull(wallet.takeCash(50000));
     }
 
-    // ==================== Test getTotalCash ====================
+    // --- getTotalCash ---
+
     @Test
-    public void testGetTotalCash() {
+    void testGetTotalCash() {
         wallet.addCash(10000);
         wallet.addCash(20000);
         wallet.addCash(50000);
@@ -143,21 +169,22 @@ public class WalletTest {
     }
 
     @Test
-    public void testGetTotalCashEmptyWallet() {
+    void testTotalCashWalletKosong() {
         assertEquals(0, wallet.getTotalCash());
     }
 
     @Test
-    public void testGetTotalCashAfterTakeCash() {
+    void testTotalCashSetelahAmbilUang() {
         wallet.addCash(50000);
         wallet.addCash(20000);
         wallet.takeCash(20000);
         assertEquals(50000, wallet.getTotalCash());
     }
 
-    // ==================== Test kombinasi scenario ====================
+    // --- skenario gabungan ---
+
     @Test
-    public void testWalletWithOwnerAndItems() {
+    void testWalletLengkap() {
         wallet.setOwner("Rakai");
         wallet.addCard("KTP");
         wallet.addCard("SIM");
@@ -170,26 +197,25 @@ public class WalletTest {
     }
 
     @Test
-    public void testCardListIndependence() {
+    void testGetCardsReturnSalinan() {
         wallet.addCard("KTP");
-        wallet.getCards().add("SIM"); // modifikasi list yang dikembalikan
-        assertEquals(1, wallet.getCards().size()); // list asli tidak berubah
+        wallet.getCards().add("SIM"); // coba modifikasi dari luar
+        assertEquals(1, wallet.getCards().size()); // harusnya tetap 1
     }
 
     @Test
-    public void testSameCardObject() {
+    void testSameCardReference() {
         String card = "KTP";
         wallet.addCard(card);
-        String takenCard = wallet.takeCard("KTP");
-        assertSame(card, takenCard);
+        String hasil = wallet.takeCard("KTP");
+        assertSame(card, hasil);
     }
 
     @Test
-    public void testDifferentWalletInstances() {
-        Wallet wallet2 = new Wallet();
+    void testBedaInstanceWallet() {
+        Wallet lain = new Wallet();
         wallet.setOwner("Budi");
-        wallet2.setOwner("Rio");
-        assertNotSame(wallet.getOwner(), wallet2.getOwner());
+        lain.setOwner("Rio");
+        assertNotSame(wallet.getOwner(), lain.getOwner());
     }
 }
-

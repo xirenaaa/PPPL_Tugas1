@@ -4,14 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Wallet {
-    private String owner;
-    private List<String> cards;
-    private List<Integer> cashList;
 
-    public Wallet() {
-        this.cards = new ArrayList<>();
-        this.cashList = new ArrayList<>();
-    }
+    private String owner;
+    private final List<String> cards = new ArrayList<>();
+    private final List<Integer> cashList = new ArrayList<>();
 
     public void setOwner(String owner) {
         this.owner = owner;
@@ -28,8 +24,7 @@ public class Wallet {
     }
 
     public String takeCard(String card) {
-        if (cards.contains(card)) {
-            cards.remove(card);
+        if (cards.remove(card)) {
             return card;
         }
         return null;
@@ -46,8 +41,7 @@ public class Wallet {
     }
 
     public Integer takeCash(int amount) {
-        if (cashList.contains(amount)) {
-            cashList.remove(Integer.valueOf(amount));
+        if (cashList.remove(Integer.valueOf(amount))) {
             return amount;
         }
         return null;
@@ -58,11 +52,6 @@ public class Wallet {
     }
 
     public int getTotalCash() {
-        int total = 0;
-        for (int cash : cashList) {
-            total += cash;
-        }
-        return total;
+        return cashList.stream().mapToInt(Integer::intValue).sum();
     }
 }
-
