@@ -1,0 +1,602 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[indonesian]{babel}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{caption}
+
+\geometry{margin=2.5cm}
+
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{codegreen}{RGB}{0,128,0}
+\definecolor{codegray}{RGB}{128,128,128}
+\definecolor{codeblue}{RGB}{0,0,180}
+\definecolor{codepurple}{RGB}{128,0,128}
+
+\lstdefinestyle{javastyle}{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\color{codeblue}\bfseries,
+    stringstyle=\color{codegreen},
+    commentstyle=\color{codegray}\itshape,
+    numberstyle=\tiny\color{codegray},
+    numbers=left,
+    numbersep=8pt,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{codegray},
+    tabsize=4,
+    showstringspaces=false,
+    language=Java,
+    morekeywords={var, record, sealed, permits},
+    literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+}
+
+\lstset{style=javastyle}
+
+\title{\textbf{Hasil dan Pembahasan\\Unit Testing pada Kelas Wallet\\menggunakan JUnit 5}}
+\author{PPPL -- Tugas 1}
+\date{}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Pendahuluan}
+% ============================================================
+
+Dokumen ini membahas implementasi kelas \texttt{Wallet} beserta pengujian unitnya
+(\texttt{WalletTest}) yang ditulis dalam bahasa Java dengan framework \textbf{JUnit 5}.
+Proyek ini menggunakan \textbf{Maven} sebagai build tool dan Java 21 sebagai versi compiler.
+
+Tujuan utama proyek adalah mendemonstrasikan praktik \textit{unit testing} yang baik,
+mencakup:
+\begin{itemize}
+    \item Pengujian tiap method secara independen.
+    \item Pengujian kasus normal (\textit{happy path}) dan kasus tepi (\textit{edge case}).
+    \item Pemanfaatan \textit{lifecycle annotations} JUnit 5
+          (\texttt{@BeforeAll}, \texttt{@BeforeEach}, \texttt{@AfterEach}, \texttt{@AfterAll}).
+\end{itemize}
+
+% ============================================================
+\section{Struktur Proyek}
+% ============================================================
+
+\begin{verbatim}
+src/
+├── main/java/org/example/
+│   └── Wallet.java          <- kode produksi
+└── test/java/org/example/
+    └── WalletTest.java       <- kode pengujian
+\end{verbatim}
+
+% ============================================================
+\section{Pembahasan Kelas \texttt{Wallet.java}}
+% ============================================================
+
+Kelas \texttt{Wallet} merepresentasikan sebuah dompet digital sederhana yang dapat
+menyimpan identitas pemilik, kartu-kartu, dan uang tunai dalam bentuk lembaran.
+
+% ------------------------------------------------------------
+\subsection{Atribut Kelas}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+private String owner;
+private final List<String> cards = new ArrayList<>();
+private final List<Integer> cashList = new ArrayList<>();
+\end{lstlisting}
+
+\begin{itemize}
+    \item \texttt{owner} -- Menyimpan nama pemilik dompet.
+          Bertipe \texttt{String} dan bernilai \texttt{null} secara default
+          sampai di-\textit{set} secara eksplisit.
+    \item \texttt{cards} -- Daftar kartu (misal KTP, SIM, ATM) yang disimpan di dompet.
+          Dideklarasikan \texttt{final} agar referensi list tidak bisa diganti,
+          namun isi list tetap bisa dimodifikasi.
+    \item \texttt{cashList} -- Daftar lembaran uang tunai.
+          Setiap elemen merepresentasikan satu lembar uang dengan nominal tertentu
+          (misal 10000, 20000, 50000).
+\end{itemize}
+
+% ------------------------------------------------------------
+\subsection{Method \texttt{setOwner} dan \texttt{getOwner}}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+public void setOwner(String owner) {
+    this.owner = owner;
+}
+
+public String getOwner() {
+    return owner;
+}
+\end{lstlisting}
+
+\textbf{Fungsi:} Mengatur dan mengambil nama pemilik dompet.
+
+\textbf{Logika:}
+Method ini merupakan \textit{getter} dan \textit{setter} standar.
+Nilai awal \texttt{owner} adalah \texttt{null}; setelah \texttt{setOwner("Budi")}
+dipanggil, \texttt{getOwner()} akan mengembalikan \texttt{"Budi"}.
+
+\textbf{Alasan implementasi:}
+Enkapsulasi -- atribut \texttt{owner} bersifat \texttt{private},
+sehingga akses dari luar kelas hanya melalui method ini.
+
+% ------------------------------------------------------------
+\subsection{Method \texttt{addCard}}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+public void addCard(String card) {
+    if (card != null && !card.isEmpty()) {
+        cards.add(card);
+    }
+}
+\end{lstlisting}
+
+\textbf{Fungsi:} Menambahkan kartu ke dalam dompet.
+
+\textbf{Logika:}
+Sebelum menambahkan, method memvalidasi bahwa parameter \texttt{card}
+tidak \texttt{null} dan tidak kosong (\texttt{""}). Jika validasi gagal,
+kartu \textbf{tidak} ditambahkan dan tidak ada \textit{exception} yang dilemparkan.
+Pendekatan ini disebut \textit{silent rejection}.
+
+\textbf{Alasan implementasi:}
+Validasi input mencegah data tidak valid masuk ke dalam dompet.
+Tanpa validasi, list \texttt{cards} bisa berisi \texttt{null} atau string kosong
+yang akan menyulitkan pemrosesan di kemudian hari.
+
+% ------------------------------------------------------------
+\subsection{Method \texttt{takeCard}}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+public String takeCard(String card) {
+    if (cards.remove(card)) {
+        return card;
+    }
+    return null;
+}
+\end{lstlisting}
+
+\textbf{Fungsi:} Mengambil (menghapus) kartu dari dompet berdasarkan nama kartu.
+
+\textbf{Logika:}
+\texttt{cards.remove(card)} mengembalikan \texttt{true} jika elemen berhasil dihapus.
+Jika kartu ditemukan dan dihapus, method mengembalikan nama kartu tersebut.
+Jika tidak ditemukan, method mengembalikan \texttt{null}.
+
+\textbf{Alasan implementasi:}
+Mengembalikan objek yang diambil memungkinkan pemanggil mengetahui
+apakah operasi berhasil (\textit{non-null}) atau gagal (\texttt{null}).
+
+% ------------------------------------------------------------
+\subsection{Method \texttt{getCards}}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+public List<String> getCards() {
+    return new ArrayList<>(cards);
+}
+\end{lstlisting}
+
+\textbf{Fungsi:} Mengembalikan daftar kartu dalam dompet.
+
+\textbf{Logika:}
+Method ini mengembalikan \textbf{salinan} (\textit{defensive copy}) dari list internal,
+bukan referensi langsung. Artinya, jika pemanggil memodifikasi list yang dikembalikan
+(misalnya menambah atau menghapus elemen), list asli di dalam objek \texttt{Wallet}
+\textbf{tidak terpengaruh}.
+
+\textbf{Alasan implementasi:}
+\textit{Defensive copy} adalah praktik penting dalam OOP untuk menjaga
+\textit{encapsulation}. Tanpa ini, kode eksternal bisa memanipulasi state internal
+objek secara langsung, melanggar prinsip \textit{information hiding}.
+
+% ------------------------------------------------------------
+\subsection{Method \texttt{addCash}}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+public void addCash(int amount) {
+    if (amount > 0) {
+        cashList.add(amount);
+    }
+}
+\end{lstlisting}
+
+\textbf{Fungsi:} Menambahkan lembaran uang tunai ke dompet.
+
+\textbf{Logika:}
+Hanya menerima nilai positif (\texttt{amount > 0}).
+Nilai nol dan negatif ditolak secara diam-diam (\textit{silent rejection}).
+Setiap pemanggilan menambahkan satu elemen ke \texttt{cashList}.
+
+\textbf{Alasan implementasi:}
+Uang tunai tidak bisa bernilai nol atau negatif dalam dunia nyata,
+sehingga validasi ini mencerminkan aturan bisnis (\textit{business rule}) yang logis.
+
+% ------------------------------------------------------------
+\subsection{Method \texttt{takeCash}}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+public Integer takeCash(int amount) {
+    if (cashList.remove(Integer.valueOf(amount))) {
+        return amount;
+    }
+    return null;
+}
+\end{lstlisting}
+
+\textbf{Fungsi:} Mengambil (menghapus) satu lembaran uang dengan nominal tertentu.
+
+\textbf{Logika:}
+\texttt{Integer.valueOf(amount)} diperlukan agar Java memanggil
+\texttt{List.remove(Object)} (hapus berdasarkan nilai), bukan
+\texttt{List.remove(int)} (hapus berdasarkan indeks).
+Jika nominal ditemukan, lembaran pertama dengan nominal tersebut dihapus dan
+nilainya dikembalikan. Jika tidak ditemukan, dikembalikan \texttt{null}.
+
+\textbf{Alasan implementasi:}
+Perbedaan antara \texttt{remove(int)} dan \texttt{remove(Object)} pada \texttt{List}
+adalah \textit{pitfall} klasik di Java. Penggunaan \texttt{Integer.valueOf()} secara
+eksplisit memastikan perilaku yang benar.
+
+% ------------------------------------------------------------
+\subsection{Method \texttt{getCashList}}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+public List<Integer> getCashList() {
+    return new ArrayList<>(cashList);
+}
+\end{lstlisting}
+
+\textbf{Fungsi:} Mengembalikan daftar lembaran uang di dompet.
+
+\textbf{Logika:}
+Sama seperti \texttt{getCards()}, method ini menerapkan \textit{defensive copy}
+untuk melindungi state internal dari modifikasi eksternal.
+
+% ------------------------------------------------------------
+\subsection{Method \texttt{getTotalCash}}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+public int getTotalCash() {
+    return cashList.stream().mapToInt(Integer::intValue).sum();
+}
+\end{lstlisting}
+
+\textbf{Fungsi:} Menghitung total uang tunai di dompet.
+
+\textbf{Logika:}
+Menggunakan \textbf{Java Stream API}:
+\begin{enumerate}
+    \item \texttt{cashList.stream()} -- membuat stream dari list.
+    \item \texttt{mapToInt(Integer::intValue)} -- mengonversi setiap \texttt{Integer}
+          menjadi \texttt{int} primitif (menghasilkan \texttt{IntStream}).
+    \item \texttt{sum()} -- menjumlahkan semua elemen.
+\end{enumerate}
+Jika list kosong, \texttt{sum()} mengembalikan \texttt{0}.
+
+\textbf{Alasan implementasi:}
+Stream API memberikan kode yang ringkas dan deklaratif dibandingkan loop manual.
+
+% ============================================================
+\section{Pembahasan Kelas \texttt{WalletTest.java}}
+% ============================================================
+
+Kelas ini berisi 22 method pengujian yang dikelompokkan berdasarkan method
+yang diuji.
+
+% ------------------------------------------------------------
+\subsection{Lifecycle Annotations}
+% ------------------------------------------------------------
+
+\begin{lstlisting}
+@BeforeAll
+static void initAll() {
+    testCount = 0;
+    System.out.println("=== Mulai test WalletTest ===");
+}
+
+@BeforeEach
+void setUp() {
+    wallet = new Wallet();
+    testCount++;
+    System.out.println("Test #" + testCount + " dimulai");
+}
+
+@AfterEach
+void tearDown() {
+    System.out.println("Test #" + testCount + " selesai");
+    wallet = null;
+}
+
+@AfterAll
+static void tearDownAll() {
+    System.out.println("=== Semua " + testCount + " test selesai ===");
+}
+\end{lstlisting}
+
+\begin{itemize}
+    \item \texttt{@BeforeAll} -- Dijalankan \textbf{sekali} sebelum seluruh test dimulai.
+          Menginisialisasi counter dan mencetak pesan awal.
+    \item \texttt{@BeforeEach} -- Dijalankan \textbf{sebelum setiap} test method.
+          Membuat objek \texttt{Wallet} baru agar setiap test berjalan dengan
+          state bersih (\textit{test isolation}).
+    \item \texttt{@AfterEach} -- Dijalankan \textbf{setelah setiap} test method.
+          Mencetak pesan dan meng-\texttt{null}-kan referensi \texttt{wallet}.
+    \item \texttt{@AfterAll} -- Dijalankan \textbf{sekali} setelah seluruh test selesai.
+          Mencetak ringkasan jumlah test.
+\end{itemize}
+
+\textbf{Alasan implementasi:}
+\textit{Test isolation} memastikan setiap test independen satu sama lain.
+Jika satu test memodifikasi dompet, test berikutnya tidak terpengaruh
+karena objek baru selalu dibuat di \texttt{@BeforeEach}.
+
+% ------------------------------------------------------------
+\subsection{Pengujian \texttt{setOwner} / \texttt{getOwner}}
+% ------------------------------------------------------------
+
+\begin{longtable}{p{4.5cm} p{8.5cm}}
+\toprule
+\textbf{Test Method} & \textbf{Penjelasan} \\
+\midrule
+\endhead
+\texttt{testSetOwner} &
+Memverifikasi bahwa setelah \texttt{setOwner("Budi")} dipanggil,
+\texttt{getOwner()} mengembalikan \texttt{"Budi"}.
+Menggunakan \texttt{assertEquals}. \\
+\midrule
+\texttt{testOwnerAwalnyaNull} &
+Memverifikasi bahwa owner bernilai \texttt{null} sebelum di-set.
+Menggunakan \texttt{assertNull}. \\
+\midrule
+\texttt{testOwnerTidakNullSetelahDiSet} &
+Memverifikasi bahwa setelah di-set, owner tidak lagi \texttt{null}.
+Menggunakan \texttt{assertNotNull}. \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------
+\subsection{Pengujian \texttt{addCard}}
+% ------------------------------------------------------------
+
+\begin{longtable}{p{4.5cm} p{8.5cm}}
+\toprule
+\textbf{Test Method} & \textbf{Penjelasan} \\
+\midrule
+\endhead
+\texttt{testAddCard} &
+Menambahkan \texttt{"KTP"}, lalu memverifikasi ukuran list = 1
+dan list mengandung \texttt{"KTP"}.
+Menggunakan \texttt{assertEquals} dan \texttt{assertTrue}. \\
+\midrule
+\texttt{testAddBanyakCard} &
+Menambahkan 3 kartu dan memverifikasi ukuran list = 3.
+Menguji akumulasi data. \\
+\midrule
+\texttt{testAddCardNull} &
+Menambahkan \texttt{null} dan memverifikasi list tetap kosong.
+Menguji validasi input terhadap \texttt{null}. \\
+\midrule
+\texttt{testAddCardKosong} &
+Menambahkan string kosong \texttt{""} dan memverifikasi list tetap kosong.
+Menguji validasi input terhadap string kosong. \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------
+\subsection{Pengujian \texttt{takeCard}}
+% ------------------------------------------------------------
+
+\begin{longtable}{p{5cm} p{8cm}}
+\toprule
+\textbf{Test Method} & \textbf{Penjelasan} \\
+\midrule
+\endhead
+\texttt{testTakeCard} &
+Menambahkan 2 kartu, mengambil \texttt{"KTP"}, lalu memverifikasi
+return value = \texttt{"KTP"} dan \texttt{"KTP"} sudah tidak ada di list. \\
+\midrule
+\texttt{testTakeCardYangTidakAda} &
+Mengambil kartu yang tidak ada di dompet.
+Memverifikasi return value = \texttt{null}. \\
+\midrule
+\texttt{testTakeCardDariWalletKosong} &
+Mengambil kartu dari dompet yang benar-benar kosong.
+Memverifikasi return value = \texttt{null} tanpa \textit{exception}. \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------
+\subsection{Pengujian \texttt{addCash}}
+% ------------------------------------------------------------
+
+\begin{longtable}{p{4.5cm} p{8.5cm}}
+\toprule
+\textbf{Test Method} & \textbf{Penjelasan} \\
+\midrule
+\endhead
+\texttt{testAddCash} &
+Menambahkan 50000, memverifikasi ukuran list = 1
+dan list mengandung 50000. \\
+\midrule
+\texttt{testAddBanyakCash} &
+Menambahkan 3 lembaran uang, memverifikasi ukuran list = 3. \\
+\midrule
+\texttt{testAddCashNol} &
+Menambahkan nilai 0, memverifikasi list tetap kosong.
+Menguji \textit{boundary condition} \texttt{amount > 0}. \\
+\midrule
+\texttt{testAddCashNegatif} &
+Menambahkan nilai negatif, memverifikasi list tetap kosong.
+Menguji validasi terhadap nilai negatif. \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------
+\subsection{Pengujian \texttt{takeCash}}
+% ------------------------------------------------------------
+
+\begin{longtable}{p{5.5cm} p{7.5cm}}
+\toprule
+\textbf{Test Method} & \textbf{Penjelasan} \\
+\midrule
+\endhead
+\texttt{testTakeCash} &
+Menambahkan 2 lembaran, mengambil 50000.
+Memverifikasi return = 50000 dan 50000 tidak ada lagi di list. \\
+\midrule
+\texttt{testTakeCashYangTidakAda} &
+Mengambil nominal yang tidak ada.
+Memverifikasi return = \texttt{null}. \\
+\midrule
+\texttt{testTakeCashDariWalletKosong} &
+Mengambil uang dari dompet kosong.
+Memverifikasi return = \texttt{null}. \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------
+\subsection{Pengujian \texttt{getTotalCash}}
+% ------------------------------------------------------------
+
+\begin{longtable}{p{5.5cm} p{7.5cm}}
+\toprule
+\textbf{Test Method} & \textbf{Penjelasan} \\
+\midrule
+\endhead
+\texttt{testGetTotalCash} &
+Menambahkan 10000 + 20000 + 50000, memverifikasi total = 80000.
+Menguji penjumlahan dengan Stream API. \\
+\midrule
+\texttt{testTotalCashWalletKosong} &
+Memverifikasi total = 0 pada dompet kosong.
+Menguji kondisi list kosong agar tidak menghasilkan error. \\
+\midrule
+\texttt{testTotalCashSetelahAmbilUang} &
+Menambahkan 50000 + 20000, mengambil 20000,
+memverifikasi total = 50000.
+Menguji konsistensi total setelah operasi \texttt{takeCash}. \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------
+\subsection{Pengujian Skenario Gabungan}
+% ------------------------------------------------------------
+
+\begin{longtable}{p{5.5cm} p{7.5cm}}
+\toprule
+\textbf{Test Method} & \textbf{Penjelasan} \\
+\midrule
+\endhead
+\texttt{testWalletLengkap} &
+Mengisi dompet secara lengkap (owner, kartu, uang),
+lalu memverifikasi semua data secara bersamaan.
+Menguji integrasi antar fitur. \\
+\midrule
+\texttt{testGetCardsReturnSalinan} &
+Menambahkan 1 kartu, lalu memodifikasi list yang dikembalikan
+\texttt{getCards()}. Memverifikasi list internal tetap berukuran 1.
+Menguji \textit{defensive copy}. \\
+\midrule
+\texttt{testSameCardReference} &
+Menambahkan kartu \texttt{"KTP"}, mengambilnya kembali,
+lalu memverifikasi bahwa referensi objek sama (\texttt{assertSame}).
+Menguji \textit{identity equality}. \\
+\midrule
+\texttt{testBedaInstanceWallet} &
+Membuat 2 objek \texttt{Wallet} berbeda dengan owner berbeda.
+Memverifikasi bahwa kedua referensi owner tidak sama
+(\texttt{assertNotSame}).
+Menguji independensi antar instance. \\
+\bottomrule
+\end{longtable}
+
+% ============================================================
+\section{Hasil Pengujian}
+% ============================================================
+
+Seluruh 22 test method berhasil dijalankan tanpa kegagalan.
+Ringkasan hasil:
+
+\begin{center}
+\begin{tabular}{l c c}
+\toprule
+\textbf{Kategori Pengujian} & \textbf{Jumlah Test} & \textbf{Status} \\
+\midrule
+\texttt{setOwner / getOwner}  & 3  & \textcolor{green!60!black}{PASSED} \\
+\texttt{addCard}               & 4  & \textcolor{green!60!black}{PASSED} \\
+\texttt{takeCard}              & 3  & \textcolor{green!60!black}{PASSED} \\
+\texttt{addCash}               & 4  & \textcolor{green!60!black}{PASSED} \\
+\texttt{takeCash}              & 3  & \textcolor{green!60!black}{PASSED} \\
+\texttt{getTotalCash}          & 3  & \textcolor{green!60!black}{PASSED} \\
+Skenario Gabungan              & 4  & \textcolor{green!60!black}{PASSED} \\
+\midrule
+\textbf{Total}                 & \textbf{22} & \textcolor{green!60!black}{\textbf{ALL PASSED}} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ============================================================
+\section{Analisis dan Kesimpulan}
+% ============================================================
+
+\subsection{Teknik yang Digunakan}
+
+\begin{enumerate}
+    \item \textbf{Validasi Input} --
+          Method \texttt{addCard} dan \texttt{addCash} memvalidasi parameter
+          sebelum memodifikasi state. Ini mencegah data tidak valid masuk
+          ke dalam objek.
+
+    \item \textbf{Defensive Copy} --
+          Method \texttt{getCards()} dan \texttt{getCashList()} mengembalikan
+          salinan list, bukan referensi langsung. Ini menjaga enkapsulasi
+          dan mencegah modifikasi state secara tidak sengaja dari luar kelas.
+
+    \item \textbf{Stream API} --
+          Method \texttt{getTotalCash()} menggunakan Stream API untuk
+          perhitungan agregat yang ringkas dan \textit{readable}.
+
+    \item \textbf{Test Isolation} --
+          Setiap test method mendapatkan objek \texttt{Wallet} baru melalui
+          \texttt{@BeforeEach}, sehingga tidak ada ketergantungan antar test.
+
+    \item \textbf{Assertion yang Beragam} --
+          Pengujian memanfaatkan berbagai jenis assertion JUnit 5:
+          \texttt{assertEquals}, \texttt{assertNull}, \texttt{assertNotNull},
+          \texttt{assertTrue}, \texttt{assertFalse}, \texttt{assertSame},
+          dan \texttt{assertNotSame}.
+\end{enumerate}
+
+\subsection{Kesimpulan}
+
+Kelas \texttt{Wallet} telah diimplementasikan dengan menerapkan prinsip
+\textit{encapsulation}, validasi input, dan \textit{defensive copy}.
+Seluruh 22 unit test berhasil \textit{passed}, membuktikan bahwa:
+
+\begin{itemize}
+    \item Setiap method bekerja sesuai spesifikasi pada kondisi normal.
+    \item \textit{Edge case} seperti input \texttt{null}, string kosong,
+          nilai nol, dan nilai negatif ditangani dengan benar.
+    \item \textit{Defensive copy} mencegah kebocoran state internal.
+    \item Operasi pada dompet kosong tidak menyebabkan \textit{exception}.
+\end{itemize}
+
+\end{document}
