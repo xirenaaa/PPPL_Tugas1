@@ -5,17 +5,31 @@ import java.util.List;
 
 public class Wallet {
 
-    private String owner;
+    private String ownerName;
+    private Owner owner;
     private final List<String> cards = new ArrayList<>();
     private final List<Integer> cashList = new ArrayList<>();
 
-    public void setOwner(String owner) {
-        this.owner = owner;
+    // --- Owner ---
+
+    public void setOwner(String ownerName) {
+        this.ownerName = ownerName;
     }
 
     public String getOwner() {
+        return ownerName;
+    }
+
+    public void setOwner(Owner owner) {
+        this.owner = owner;
+        this.ownerName = owner.getName();
+    }
+
+    public Owner getOwnerObject() {
         return owner;
     }
+
+    // --- Card ---
 
     public void addCard(String card) {
         if (card != null && !card.isEmpty()) {
@@ -34,6 +48,8 @@ public class Wallet {
         return new ArrayList<>(cards);
     }
 
+    // --- Cash ---
+
     public void addCash(int amount) {
         if (amount > 0) {
             cashList.add(amount);
@@ -45,6 +61,28 @@ public class Wallet {
             return amount;
         }
         return null;
+    }
+
+    public void withdrawCash(int amount) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Jumlah withdraw harus lebih dari 0");
+        }
+        int total = getTotalCash();
+        if (amount > total) {
+            throw new InsufficientFundsException("Saldo tidak cukup");
+        }
+        int remaining = amount;
+        List<Integer> toRemove = new ArrayList<>();
+        for (int cash : cashList) {
+            if (remaining <= 0) break;
+            toRemove.add(cash);
+            remaining -= cash;
+        }
+        cashList.removeAll(toRemove);
+        int change = -remaining;
+        if (change > 0) {
+            cashList.add(change);
+        }
     }
 
     public List<Integer> getCashList() {

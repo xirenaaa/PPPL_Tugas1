@@ -1,39 +1,38 @@
 package org.example;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.*;
+
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class WalletTest {
 
     private Wallet wallet;
-    private static int testCount;
 
     @BeforeAll
     static void initAll() {
-        testCount = 0;
         System.out.println("=== Mulai test WalletTest ===");
     }
 
     @BeforeEach
     void setUp() {
         wallet = new Wallet();
-        testCount++;
-        System.out.println("Test #" + testCount + " dimulai");
     }
 
     @AfterEach
     void tearDown() {
-        System.out.println("Test #" + testCount + " selesai");
         wallet = null;
     }
 
     @AfterAll
     static void tearDownAll() {
-        System.out.println("=== Semua " + testCount + " test selesai ===");
+        System.out.println("=== Semua test WalletTest selesai ===");
     }
 
-    // --- setOwner ---
+    // ==================== Owner (String) ====================
 
     @Test
     void testSetOwner() {
@@ -43,7 +42,7 @@ class WalletTest {
 
     @Test
     void testOwnerAwalnyaNull() {
-        assertNull(wallet.getOwner());
+        assertNull(wallet.getOwner(), "Owner harus null saat wallet baru dibuat");
     }
 
     @Test
@@ -52,7 +51,28 @@ class WalletTest {
         assertNotNull(wallet.getOwner());
     }
 
-    // --- addCard ---
+    // ==================== Owner (Object) via MethodSource ====================
+
+    static Stream<Arguments> ownerProvider() {
+        return Stream.of(
+                Arguments.of(new Owner("Budi", "budi@mail.com")),
+                Arguments.of(new Owner("Sari", "sari@mail.com")),
+                Arguments.of(new Owner("Andi", "andi@mail.com"))
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("ownerProvider")
+    void testSetOwnerObject(Owner owner) {
+        wallet.setOwner(owner);
+
+        assertNotNull(wallet.getOwnerObject(), "Owner object tidak boleh null");
+        assertSame(owner, wallet.getOwnerObject());
+        assertEquals(owner.getName(), wallet.getOwner());
+        assertEquals(owner.getEmail(), wallet.getOwnerObject().getEmail());
+    }
+
+    // ==================== addCard ====================
 
     @Test
     void testAddCard() {
@@ -70,18 +90,13 @@ class WalletTest {
     }
 
     @Test
-    void testAddCardNull() {
+    void testAddCardNullDanKosong() {
         wallet.addCard(null);
-        assertEquals(0, wallet.getCards().size());
-    }
-
-    @Test
-    void testAddCardKosong() {
         wallet.addCard("");
         assertEquals(0, wallet.getCards().size());
     }
 
-    // --- takeCard ---
+    // ==================== takeCard ====================
 
     @Test
     void testTakeCard() {
@@ -105,36 +120,41 @@ class WalletTest {
         assertNull(wallet.takeCard("KTP"));
     }
 
-    // --- addCash ---
+    @Test
+    void testSameCardReference() {
+        String card = "KTP";
+        wallet.addCard(card);
+        String hasil = wallet.takeCard("KTP");
+        assertSame(card, hasil);
+    }
 
     @Test
-    void testAddCash() {
-        wallet.addCash(50000);
+    void testGetCardsReturnSalinan() {
+        wallet.addCard("KTP");
+        wallet.getCards().add("SIM");
+        assertEquals(1, wallet.getCards().size(), "getCards() harus return salinan");
+    }
+
+    // ==================== addCash — ValueSource (valid positif) ====================
+
+    @ParameterizedTest
+    @ValueSource(ints = {1000, 5000, 10000, 50000, 100000})
+    void testAddCashValid(int amount) {
+        wallet.addCash(amount);
         assertEquals(1, wallet.getCashList().size());
-        assertTrue(wallet.getCashList().contains(50000));
+        assertTrue(wallet.getCashList().contains(amount));
     }
 
-    @Test
-    void testAddBanyakCash() {
-        wallet.addCash(10000);
-        wallet.addCash(20000);
-        wallet.addCash(50000);
-        assertEquals(3, wallet.getCashList().size());
+    // ==================== addCash — ValueSource (invalid negatif/nol) ====================
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1000, -50000})
+    void testAddCashInvalid(int amount) {
+        wallet.addCash(amount);
+        assertEquals(0, wallet.getCashList().size(), "Cash negatif/nol tidak boleh masuk");
     }
 
-    @Test
-    void testAddCashNol() {
-        wallet.addCash(0);
-        assertEquals(0, wallet.getCashList().size());
-    }
-
-    @Test
-    void testAddCashNegatif() {
-        wallet.addCash(-10000);
-        assertEquals(0, wallet.getCashList().size());
-    }
-
-    // --- takeCash ---
+    // ==================== takeCash ====================
 
     @Test
     void testTakeCash() {
@@ -158,7 +178,7 @@ class WalletTest {
         assertNull(wallet.takeCash(50000));
     }
 
-    // --- getTotalCash ---
+    // ==================== getTotalCash ====================
 
     @Test
     void testGetTotalCash() {
@@ -173,42 +193,55 @@ class WalletTest {
         assertEquals(0, wallet.getTotalCash());
     }
 
-    @Test
-    void testTotalCashSetelahAmbilUang() {
-        wallet.addCash(50000);
-        wallet.addCash(20000);
-        wallet.takeCash(20000);
-        assertEquals(50000, wallet.getTotalCash());
+    // ==================== withdrawCash — CsvFileSource valid ====================
+
+    @ParameterizedTest
+    @CsvFileSource(resources = "/withdraw-valid.csv", numLinesToSkip = 1)
+    void testWithdrawCashValid(int deposit, int withdraw, int expectedTotal) {
+        wallet.addCash(deposit);
+
+        if (withdraw > 0) {
+            wallet.withdrawCash(withdraw);
+        }
+
+        assertEquals(expectedTotal, wallet.getTotalCash(),
+                "Deposit " + deposit + " - withdraw " + withdraw + " harus = " + expectedTotal);
     }
 
-    // --- skenario gabungan ---
+    // ==================== withdrawCash — CsvFileSource invalid ====================
+
+    @ParameterizedTest
+    @CsvFileSource(resources = "/withdraw-invalid.csv", numLinesToSkip = 1)
+    void testWithdrawCashInvalid(int initialDeposit, int withdraw, String exceptionType) {
+        if (initialDeposit > 0) {
+            wallet.addCash(initialDeposit);
+        }
+
+        if (exceptionType.equals("InsufficientFundsException")) {
+            assertThrows(InsufficientFundsException.class,
+                    () -> wallet.withdrawCash(withdraw),
+                    "Harus throw InsufficientFundsException");
+        } else {
+            assertThrows(IllegalArgumentException.class,
+                    () -> wallet.withdrawCash(withdraw),
+                    "Harus throw IllegalArgumentException");
+        }
+    }
+
+    // ==================== Skenario gabungan ====================
 
     @Test
     void testWalletLengkap() {
-        wallet.setOwner("Rakai");
+        Owner owner = new Owner("Rakai", "rakai@mail.com");
+        wallet.setOwner(owner);
         wallet.addCard("KTP");
         wallet.addCard("SIM");
         wallet.addCash(100000);
 
-        assertNotNull(wallet.getOwner());
         assertEquals("Rakai", wallet.getOwner());
+        assertSame(owner, wallet.getOwnerObject());
         assertEquals(2, wallet.getCards().size());
         assertEquals(100000, wallet.getTotalCash());
-    }
-
-    @Test
-    void testGetCardsReturnSalinan() {
-        wallet.addCard("KTP");
-        wallet.getCards().add("SIM"); // coba modifikasi dari luar
-        assertEquals(1, wallet.getCards().size()); // harusnya tetap 1
-    }
-
-    @Test
-    void testSameCardReference() {
-        String card = "KTP";
-        wallet.addCard(card);
-        String hasil = wallet.takeCard("KTP");
-        assertSame(card, hasil);
     }
 
     @Test
