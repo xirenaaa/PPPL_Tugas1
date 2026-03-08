@@ -1,0 +1,630 @@
+\documentclass[12pt,a4paper]{article}
+
+% ─── Packages ───────────────────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[bahasa]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\usepackage{setspace}
+\onehalfspacing
+
+\usepackage{parskip}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{6pt}
+
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{\thesubsubsection.}{0.5em}{}
+
+\usepackage{listings}
+\usepackage{xcolor}
+
+\definecolor{codebg}{rgb}{0.97,0.97,0.97}
+\definecolor{javakw}{rgb}{0.13,0.13,0.67}
+\definecolor{javastr}{rgb}{0.20,0.55,0.20}
+\definecolor{javacom}{rgb}{0.45,0.45,0.45}
+\definecolor{javaann}{rgb}{0.55,0.20,0.60}
+
+\lstdefinestyle{javaStyle}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{javakw}\bfseries,
+  stringstyle=\color{javastr},
+  commentstyle=\color{javacom}\itshape,
+  emph={@Test,@ParameterizedTest,@ValueSource,@MethodSource,@CsvFileSource,
+        @BeforeAll,@BeforeEach,@AfterEach,@AfterAll},
+  emphstyle=\color{javaann}\bfseries,
+  breaklines=true,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!50},
+  tabsize=4,
+  showstringspaces=false,
+  captionpos=b,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=8pt,
+  xleftmargin=1.5em,
+  framexleftmargin=1.5em,
+}
+\lstset{style=javaStyle}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue, citecolor=black}
+
+\usepackage{caption}
+\captionsetup[lstlisting]{font=small, labelfont=bf}
+
+% ─── Metadata ────────────────────────────────────────────────────────────────
+\title{%
+  \textbf{Analisis Cara Kerja dan Fungsi Kode\\
+  pada \textit{Parameterized Testing} dengan JUnit~5}\\[4pt]
+  \large Studi Kasus: Proyek \texttt{Unit\_Testing1} --- Wallet Management System
+}
+\author{%
+  Pemrograman Perangkat Lunak Lanjut (PPPL)\\
+  Tugas 1 --- Pembahasan Kode
+}
+\date{2025}
+
+% ─── Document ────────────────────────────────────────────────────────────────
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =============================================================================
+\section{Pendahuluan}
+% =============================================================================
+
+Pengujian perangkat lunak merupakan salah satu tahapan kritis dalam siklus pengembangan
+perangkat lunak.  Tanpa pengujian yang memadai, kebenaran fungsional suatu sistem tidak
+dapat dijamin, sehingga potensi kegagalan di lingkungan produksi menjadi jauh lebih
+besar.  Dalam konteks \textit{unit testing}, setiap unit fungsional yang terkecil---biasanya
+sebuah metode---diverifikasi secara terisolasi guna memastikan perilakunya sesuai dengan
+spesifikasi yang telah ditetapkan.
+
+Repositori \texttt{PPPL\_Tugas1} ini mengimplementasikan sistem manajemen dompet
+(\textit{Wallet Management System}) sederhana yang ditulis dalam bahasa Java, beserta
+rangkaian pengujian unit yang komprehensif menggunakan kerangka kerja
+JUnit~5.\footnote{JUnit~5 adalah versi terkini dari kerangka kerja pengujian unit Java
+yang terdiri atas tiga modul utama: JUnit Platform, JUnit Jupiter, dan JUnit Vintage.}
+Pengujian dalam proyek ini secara khusus memanfaatkan fitur \textit{parameterized testing},
+yaitu kemampuan untuk menjalankan satu definisi metode uji terhadap sejumlah nilai
+masukan yang berbeda-beda secara otomatis, tanpa duplikasi kode.
+
+Dokumen ini membahas secara akademis cara kerja dan fungsi setiap komponen kode dalam
+repositori tersebut, dengan penekanan pada mekanisme \textit{parameterized testing} yang
+diterapkan, meliputi anotasi \texttt{@ValueSource}, \texttt{@MethodSource}, dan
+\texttt{@CsvFileSource}.
+
+% =============================================================================
+\section{Struktur Proyek}
+% =============================================================================
+
+Proyek dikonfigurasi menggunakan Apache Maven dengan Java~21 sebagai versi target
+kompilasi.  Dependensi utama yang dideklarasikan dalam berkas \texttt{pom.xml} adalah
+\texttt{junit-jupiter} versi 5.10.2, yang menyediakan seluruh API pengujian yang
+digunakan.  Secara keseluruhan, struktur kode terbagi menjadi dua lapisan: kode produksi
+(\textit{main}) dan kode pengujian (\textit{test}).
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Lapisan} & \textbf{Berkas} \\
+\midrule
+Kode produksi & \texttt{Wallet.java}, \texttt{Owner.java}, \texttt{InsufficientFundsException.java} \\
+Kode pengujian & \texttt{WalletTest.java} \\
+Data uji & \texttt{withdraw-valid.csv}, \texttt{withdraw-invalid.csv} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% =============================================================================
+\section{Kelas-Kelas Produksi}
+% =============================================================================
+
+\subsection{Kelas \texttt{InsufficientFundsException}}
+
+Kelas ini merupakan \textit{custom exception} yang mewarisi kelas
+\texttt{RuntimeException}.  Keberadaannya mencerminkan prinsip desain yang baik: alih-alih
+menggunakan pengecualian generik, sistem mendefinisikan tipe pengecualian khusus yang
+secara semantik merepresentasikan kondisi saldo tidak mencukupi.  Konstruktor tunggalnya
+menerima sebuah pesan deskriptif yang kemudian diteruskan ke konstruktor induk melalui
+pemanggilan \texttt{super(message)}.
+
+\begin{lstlisting}[language=Java, caption={Definisi \texttt{InsufficientFundsException}}]
+public class InsufficientFundsException extends RuntimeException {
+    public InsufficientFundsException(String message) {
+        super(message);
+    }
+}
+\end{lstlisting}
+
+Karena merupakan \textit{unchecked exception} (turunan \texttt{RuntimeException}), kelas
+ini tidak memaksa pemanggil untuk menanganinya secara eksplisit, sehingga kode klien
+tetap bersih dari blok \texttt{try-catch} yang tidak diperlukan.
+
+\subsection{Kelas \texttt{Owner}}
+
+Kelas \texttt{Owner} merepresentasikan pemilik dompet dengan dua atribut tidak dapat
+diubah (\textit{immutable}): \texttt{name} dan \texttt{email}.  Kedua atribut ini
+dideklarasikan sebagai \texttt{final} dan hanya dapat ditetapkan melalui konstruktor,
+yang memastikan bahwa setiap objek \texttt{Owner} yang telah dibuat bersifat konsisten
+sepanjang masa hidupnya.
+
+\begin{lstlisting}[language=Java, caption={Definisi \texttt{Owner}}]
+public class Owner {
+    private final String name;
+    private final String email;
+
+    public Owner(String name, String email) {
+        this.name = name;
+        this.email = email;
+    }
+
+    public String getName()  { return name; }
+    public String getEmail() { return email; }
+}
+\end{lstlisting}
+
+Desain \textit{immutable} ini sangat relevan dalam konteks pengujian karena objek
+\texttt{Owner} dapat digunakan kembali sebagai data masukan lintas pengujian tanpa
+risiko perubahan keadaan yang tidak diinginkan.
+
+\subsection{Kelas \texttt{Wallet}}
+
+Kelas \texttt{Wallet} adalah kelas utama yang mengenkapsulasi logika bisnis sistem
+dompet.  Kelas ini mengelola tiga aspek utama: informasi pemilik (\textit{owner}),
+koleksi kartu (\textit{cards}), dan daftar uang tunai (\textit{cashList}).
+
+\subsubsection{Manajemen Pemilik}
+
+Kelas ini mendukung dua varian penetapan pemilik: penetapan melalui nama string biasa
+dan penetapan melalui objek \texttt{Owner}.  Ketika pemilik ditetapkan melalui objek
+\texttt{Owner}, atribut \texttt{ownerName} juga ikut diperbarui secara otomatis dari
+\texttt{owner.getName()}, sehingga kedua representasi selalu sinkron.
+
+\subsubsection{Manajemen Kartu}
+
+Metode \texttt{addCard(String card)} hanya menerima kartu yang tidak bernilai
+\texttt{null} dan tidak kosong, sebagaimana tercermin dari kondisi validasi berikut:
+
+\begin{lstlisting}[language=Java, caption={Validasi pada \texttt{addCard}}]
+public void addCard(String card) {
+    if (card != null && !card.isEmpty()) {
+        cards.add(card);
+    }
+}
+\end{lstlisting}
+
+Metode \texttt{takeCard(String card)} menghapus dan mengembalikan kartu yang sesuai
+dari koleksi; jika kartu tidak ditemukan, metode mengembalikan \texttt{null}.  Metode
+\texttt{getCards()} mengembalikan salinan defensif dari daftar kartu
+(\texttt{new ArrayList<>(cards)}) sehingga perubahan pada daftar yang dikembalikan tidak
+memengaruhi keadaan internal dompet.
+
+\subsubsection{Manajemen Uang Tunai}
+
+Metode \texttt{addCash(int amount)} hanya menambahkan nilai yang positif.  Metode
+\texttt{takeCash(int amount)} menghapus entri pertama yang cocok secara nilai; karena
+penggunaan \texttt{cashList.remove(Integer.valueOf(amount))}, metode ini menghapus
+berdasarkan nilai (\textit{by value}), bukan berdasarkan indeks.
+
+Metode \texttt{withdrawCash(int amount)} mengimplementasikan logika penarikan yang lebih
+kompleks.  Ia terlebih dahulu memvalidasi bahwa jumlah penarikan positif (melempar
+\texttt{IllegalArgumentException} bila tidak), kemudian memeriksa kecukupan saldo total
+(melempar \texttt{InsufficientFundsException} bila saldo kurang).  Proses penarikan
+mengiterasikan \texttt{cashList} secara berurutan, mengumpulkan entri yang akan dihapus
+hingga jumlah target terpenuhi, dan mengembalikan kembalian (\textit{change}) bila ada.
+
+\begin{lstlisting}[language=Java, caption={Logika \texttt{withdrawCash}}]
+public void withdrawCash(int amount) {
+    if (amount <= 0)
+        throw new IllegalArgumentException("Jumlah withdraw harus lebih dari 0");
+    int total = getTotalCash();
+    if (amount > total)
+        throw new InsufficientFundsException("Saldo tidak cukup");
+    int remaining = amount;
+    List<Integer> toRemove = new ArrayList<>();
+    for (int cash : cashList) {
+        if (remaining <= 0) break;
+        toRemove.add(cash);
+        remaining -= cash;
+    }
+    cashList.removeAll(toRemove);
+    int change = -remaining;
+    if (change > 0) cashList.add(change);
+}
+\end{lstlisting}
+
+% =============================================================================
+\section{Kelas Pengujian: \texttt{WalletTest}}
+% =============================================================================
+
+\subsection{Gambaran Umum}
+
+\texttt{WalletTest} adalah kelas pengujian unit yang menggunakan API JUnit~5 Jupiter.
+Kelas ini tidak bersifat \texttt{public} (sesuai konvensi JUnit~5 yang tidak
+memerlukannya), dan mendeklarasikan atribut instansi \texttt{wallet} bertipe
+\texttt{Wallet} yang selalu diinisialisasi ulang sebelum setiap metode uji dijalankan.
+
+\subsection{Siklus Hidup Pengujian (\textit{Test Lifecycle})}
+
+JUnit~5 menyediakan empat anotasi siklus hidup yang digunakan dalam kelas ini:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Anotasi} & \textbf{Cakupan} & \textbf{Fungsi} \\
+\midrule
+\texttt{@BeforeAll}  & Sekali per kelas & Mencetak pesan pembuka sesi pengujian \\
+\texttt{@BeforeEach} & Sebelum tiap uji & Membuat instansi \texttt{Wallet} baru \\
+\texttt{@AfterEach}  & Setelah tiap uji & Mengatur ulang \texttt{wallet} ke \texttt{null} \\
+\texttt{@AfterAll}   & Sekali per kelas & Mencetak pesan penutup sesi pengujian \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Pola ini sangat penting untuk menjamin \textit{test isolation}: setiap metode uji
+mendapatkan objek \texttt{Wallet} yang bersih, sehingga keadaan yang ditinggalkan oleh
+satu pengujian tidak memengaruhi pengujian berikutnya.  Hal ini merupakan praktik standar
+dalam \textit{unit testing} yang mencegah terjadinya \textit{test coupling}.
+
+\begin{lstlisting}[language=Java, caption={Anotasi siklus hidup pada \texttt{WalletTest}}]
+@BeforeAll
+static void initAll() {
+    System.out.println("=== Mulai test WalletTest ===");
+}
+
+@BeforeEach
+void setUp() {
+    wallet = new Wallet();
+}
+
+@AfterEach
+void tearDown() {
+    wallet = null;
+}
+
+@AfterAll
+static void tearDownAll() {
+    System.out.println("=== Semua test WalletTest selesai ===");
+}
+\end{lstlisting}
+
+Perlu dicatat bahwa metode yang dianotasi \texttt{@BeforeAll} dan \texttt{@AfterAll}
+harus bersifat \texttt{static} karena dipanggil pada level kelas, bukan pada level
+instansi.
+
+% =============================================================================
+\section{Parameterized Testing}
+% =============================================================================
+
+\textit{Parameterized testing} adalah teknik penulisan pengujian di mana satu metode uji
+dijalankan berulang kali dengan nilai masukan yang berbeda-beda, yang disuplai oleh sebuah
+\textit{provider}.  Dalam JUnit~5, teknik ini diaktifkan dengan anotasi
+\texttt{@ParameterizedTest} yang dikombinasikan dengan salah satu anotasi sumber data
+(\textit{source annotation}).  Pendekatan ini secara signifikan mengurangi duplikasi kode
+dibandingkan dengan penulisan metode uji terpisah untuk setiap nilai masukan.
+
+Proyek ini menggunakan tiga jenis sumber data parameterized testing, yaitu
+\texttt{@ValueSource}, \texttt{@MethodSource}, dan \texttt{@CsvFileSource}.  Masing-masing
+memiliki karakteristik, kelebihan, dan konteks penggunaan yang berbeda, sebagaimana
+diuraikan pada subbagian berikut.
+
+\subsection{\texttt{@ValueSource}: Sumber Nilai Tunggal}
+
+\texttt{@ValueSource} merupakan cara paling sederhana untuk menyuplai data ke metode
+parameterized testing.  Anotasi ini mendukung array dari tipe primitif maupun
+\texttt{String} dan \texttt{Class}, dan setiap elemen array tersebut akan digunakan
+sebagai argumen tunggal untuk satu eksekusi metode uji.
+
+\subsubsection{Pengujian Nilai Uang Tunai Valid}
+
+\begin{lstlisting}[language=Java, caption={Pengujian \texttt{addCash} dengan nilai valid menggunakan \texttt{@ValueSource}}]
+@ParameterizedTest
+@ValueSource(ints = {1000, 5000, 10000, 50000, 100000})
+void testAddCashValid(int amount) {
+    wallet.addCash(amount);
+    assertEquals(1, wallet.getCashList().size());
+    assertTrue(wallet.getCashList().contains(amount));
+}
+\end{lstlisting}
+
+Metode ini dieksekusi sebanyak lima kali, sekali untuk setiap nilai dalam array
+\texttt{\{1000, 5000, 10000, 50000, 100000\}}.  Pada setiap eksekusi, JUnit~5 menyuplai
+nilai yang bersangkutan sebagai argumen \texttt{amount}.  Karena \texttt{@BeforeEach}
+membuat objek \texttt{Wallet} baru sebelum setiap eksekusi, setiap iterasi dimulai
+dengan dompet yang kosong.
+
+Setiap eksekusi memverifikasi dua hal: pertama, bahwa ukuran \texttt{cashList} bertambah
+menjadi tepat satu (artinya uang berhasil ditambahkan); kedua, bahwa nilai tersebut
+memang terdapat dalam daftar.  Kelima nilai yang diuji merupakan denominasi uang kertas
+Rupiah yang umum, menunjukkan desain uji yang relevan secara bisnis.
+
+\subsubsection{Pengujian Nilai Uang Tunai Tidak Valid}
+
+\begin{lstlisting}[language=Java, caption={Pengujian \texttt{addCash} dengan nilai tidak valid menggunakan \texttt{@ValueSource}}]
+@ParameterizedTest
+@ValueSource(ints = {0, -1000, -50000})
+void testAddCashInvalid(int amount) {
+    wallet.addCash(amount);
+    assertEquals(0, wallet.getCashList().size(),
+        "Cash negatif/nol tidak boleh masuk");
+}
+\end{lstlisting}
+
+Metode ini menguji tiga nilai batas: nol, nilai negatif kecil, dan nilai negatif besar.
+Masing-masing diharapkan \emph{tidak} mengubah ukuran \texttt{cashList}, karena logika
+validasi dalam \texttt{Wallet.addCash()} menolak nilai yang tidak lebih besar dari nol
+(\texttt{if (amount > 0)}).  Pesan kustom pada argumen ketiga \texttt{assertEquals}
+memperjelas ekspektasi apabila pengujian gagal.
+
+\subsubsection{Ringkasan Mekanisme \texttt{@ValueSource}}
+
+\texttt{@ValueSource} sangat efektif untuk menguji satu parameter primitif dengan
+sejumlah kecil nilai yang dapat didaftar secara \textit{inline}.  Kelemahannya adalah
+tidak dapat digunakan untuk menguji lebih dari satu parameter sekaligus, sehingga untuk
+skenario multiparameter diperlukan anotasi sumber data lainnya.
+
+\subsection{\texttt{@MethodSource}: Sumber Data dari Metode Pabrik}
+
+\texttt{@MethodSource} memungkinkan metode uji menerima parameter kompleks, termasuk
+objek Java, dengan cara menunjuk ke sebuah metode \textit{factory} yang mengembalikan
+\texttt{Stream<Arguments>} atau struktur sejenis.
+
+\subsubsection{Pengujian Penetapan Objek \texttt{Owner}}
+
+\begin{lstlisting}[language=Java, caption={Metode pabrik data untuk \texttt{@MethodSource}}]
+static Stream<Arguments> ownerProvider() {
+    return Stream.of(
+        Arguments.of(new Owner("Budi",  "budi@mail.com")),
+        Arguments.of(new Owner("Sari",  "sari@mail.com")),
+        Arguments.of(new Owner("Andi",  "andi@mail.com"))
+    );
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=Java, caption={Pengujian \texttt{setOwner(Owner)} dengan \texttt{@MethodSource}}]
+@ParameterizedTest
+@MethodSource("ownerProvider")
+void testSetOwnerObject(Owner owner) {
+    wallet.setOwner(owner);
+
+    assertNotNull(wallet.getOwnerObject(),
+        "Owner object tidak boleh null");
+    assertSame(owner, wallet.getOwnerObject());
+    assertEquals(owner.getName(), wallet.getOwner());
+    assertEquals(owner.getEmail(),
+        wallet.getOwnerObject().getEmail());
+}
+\end{lstlisting}
+
+Metode \texttt{ownerProvider()} adalah metode statis yang mengembalikan aliran tiga
+objek \texttt{Arguments}, masing-masing membungkus sebuah instansi \texttt{Owner} yang
+berbeda.  JUnit~5 mengiterasi aliran ini dan memanggil \texttt{testSetOwnerObject}
+sebanyak tiga kali, sekali untuk setiap objek \texttt{Owner}.
+
+Dalam setiap eksekusi, empat asersi diverifikasi:
+\begin{enumerate}
+  \item \textbf{\texttt{assertNotNull}} --- memastikan bahwa setelah \texttt{setOwner},
+        referensi objek \texttt{Owner} dalam dompet tidak \texttt{null}.
+  \item \textbf{\texttt{assertSame}} --- memverifikasi identitas referensi objek, yaitu
+        bahwa \texttt{wallet.getOwnerObject()} mengembalikan \emph{referensi yang sama
+        persis} dengan objek \texttt{owner} yang disuplai, bukan salinan baru.  Ini
+        membuktikan bahwa \texttt{setOwner(Owner)} menyimpan referensi asli, bukan
+        melakukan kloning.
+  \item \textbf{\texttt{assertEquals}} pertama --- memverifikasi bahwa
+        \texttt{ownerName} dalam dompet sinkron dengan nama dari objek \texttt{Owner}
+        yang baru ditetapkan.
+  \item \textbf{\texttt{assertEquals}} kedua --- memverifikasi bahwa data email dapat
+        diakses melalui jalur \texttt{getOwnerObject().getEmail()}.
+\end{enumerate}
+
+\subsubsection{Kapan Menggunakan \texttt{@MethodSource}}
+
+\texttt{@MethodSource} adalah pilihan yang tepat ketika: (a) parameter pengujian berupa
+objek Java (bukan tipe primitif atau \texttt{String}); (b) data pengujian perlu dibuat
+secara programatis; atau (c) terdapat lebih dari satu parameter dengan tipe yang beragam.
+Metode pabrik harus bersifat \texttt{static} dan harus dideklarasikan dalam kelas yang
+sama atau dapat direferensikan secara penuh.
+
+\subsection{\texttt{@CsvFileSource}: Sumber Data dari Berkas CSV Eksternal}
+
+\texttt{@CsvFileSource} memungkinkan data pengujian dipisahkan sepenuhnya dari kode
+pengujian ke dalam berkas CSV yang disimpan di direktori sumber daya (\textit{resources}).
+Pendekatan ini sangat menguntungkan ketika data pengujian berjumlah besar, perlu dikelola
+oleh pemangku kepentingan non-teknis, atau perlu diperbarui tanpa mengubah kode sumber.
+
+\subsubsection{Pengujian Penarikan Uang Valid}
+
+Data uji untuk skenario valid disimpan dalam berkas
+\texttt{src/test/resources/withdraw-valid.csv}:
+
+\begin{lstlisting}[caption={Isi berkas \texttt{withdraw-valid.csv}}]
+deposit,withdraw,expectedTotal
+10000,0,10000
+20000,5000,15000
+50000,25000,25000
+100000,100000,0
+\end{lstlisting}
+
+Baris pertama berupa baris tajuk (\textit{header}) yang dilewati berkat parameter
+\texttt{numLinesToSkip = 1}.  Empat baris berikutnya mendefinisikan empat skenario
+pengujian: tanpa penarikan, penarikan sebagian, penarikan setengah, dan penarikan penuh.
+
+\begin{lstlisting}[language=Java, caption={Pengujian penarikan valid dengan \texttt{@CsvFileSource}}]
+@ParameterizedTest
+@CsvFileSource(resources = "/withdraw-valid.csv",
+               numLinesToSkip = 1)
+void testWithdrawCashValid(int deposit,
+                           int withdraw,
+                           int expectedTotal) {
+    wallet.addCash(deposit);
+    if (withdraw > 0) {
+        wallet.withdrawCash(withdraw);
+    }
+    assertEquals(expectedTotal, wallet.getTotalCash(),
+        "Deposit " + deposit
+        + " - withdraw " + withdraw
+        + " harus = " + expectedTotal);
+}
+\end{lstlisting}
+
+Untuk setiap baris CSV, JUnit~5 menyuplai tiga kolom sebagai tiga argumen metode.
+Kondisi \texttt{if (withdraw > 0)} mencegah pemanggilan \texttt{withdrawCash} dengan
+nilai nol (yang akan melempar \texttt{IllegalArgumentException}), karena baris pertama
+data memang bermaksud menguji skenario tanpa penarikan.  Pesan kustom pada
+\texttt{assertEquals} mempermudah diagnosa kegagalan dengan menampilkan konteks data
+saat itu.
+
+\subsubsection{Pengujian Penarikan Uang Tidak Valid}
+
+Data uji untuk skenario tidak valid disimpan dalam berkas
+\texttt{src/test/resources/withdraw-invalid.csv}:
+
+\begin{lstlisting}[caption={Isi berkas \texttt{withdraw-invalid.csv}}]
+initialDeposit,withdraw,exceptionType
+10000,15000,InsufficientFundsException
+10000,0,IllegalArgumentException
+10000,-1000,IllegalArgumentException
+0,1000,InsufficientFundsException
+\end{lstlisting}
+
+Setiap baris mendefinisikan satu skenario kesalahan yang diharapkan: (1) penarikan
+melebihi saldo; (2) penarikan dengan nilai nol; (3) penarikan dengan nilai negatif; dan
+(4) penarikan dari dompet tanpa dana.
+
+\begin{lstlisting}[language=Java, caption={Pengujian penarikan tidak valid dengan \texttt{@CsvFileSource}}]
+@ParameterizedTest
+@CsvFileSource(resources = "/withdraw-invalid.csv",
+               numLinesToSkip = 1)
+void testWithdrawCashInvalid(int initialDeposit,
+                             int withdraw,
+                             String exceptionType) {
+    if (initialDeposit > 0) {
+        wallet.addCash(initialDeposit);
+    }
+    if (exceptionType.equals("InsufficientFundsException")) {
+        assertThrows(InsufficientFundsException.class,
+            () -> wallet.withdrawCash(withdraw),
+            "Harus throw InsufficientFundsException");
+    } else {
+        assertThrows(IllegalArgumentException.class,
+            () -> wallet.withdrawCash(withdraw),
+            "Harus throw IllegalArgumentException");
+    }
+}
+\end{lstlisting}
+
+Metode ini membaca kolom ketiga (\texttt{exceptionType}) sebagai \texttt{String} dan
+menggunakannya untuk menentukan tipe pengecualian yang diharapkan secara dinamis.
+\texttt{assertThrows} dari JUnit~5 memverifikasi bahwa ekspresi lambda yang diberikan
+melempar pengecualian dari tipe yang tepat; jika tidak ada pengecualian yang dilempar
+atau tipenya berbeda, pengujian dinyatakan gagal.
+
+Penggunaan kolom \texttt{exceptionType} berbasis string ini merupakan pola yang umum
+dalam parameterized testing berbasis CSV untuk menghindari keterbatasan bahwa berkas CSV
+tidak dapat merepresentasikan tipe Java secara langsung.
+
+\subsubsection{Keunggulan \texttt{@CsvFileSource}}
+
+Pemisahan data dari kode memberikan beberapa keuntungan: (a) data pengujian dapat
+dikembangkan secara independen dari kode; (b) mempermudah tinjauan kasus uji oleh analis
+bisnis; dan (c) memungkinkan penambahan skenario baru tanpa kompilasi ulang kode
+pengujian---hanya berkas CSV yang perlu diperbarui.
+
+% =============================================================================
+\section{Perbandingan Mekanisme \textit{Parameterized Testing}}
+% =============================================================================
+
+Tabel berikut merangkum perbedaan karakteristik ketiga mekanisme parameterized testing
+yang digunakan dalam proyek ini:
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{3cm}
+                  >{\raggedright\arraybackslash}p{3cm}
+                  >{\raggedright\arraybackslash}p{4cm}
+                  >{\raggedright\arraybackslash}p{4cm}}
+\toprule
+\textbf{Anotasi} & \textbf{Tipe Parameter} & \textbf{Kelebihan} & \textbf{Keterbatasan} \\
+\midrule
+\endhead
+\texttt{@ValueSource}    & Primitif / \texttt{String}  &
+  Sintaks ringkas, mudah dibaca \textit{inline} &
+  Hanya satu parameter, tidak mendukung objek \\[4pt]
+\texttt{@MethodSource}   & Objek Java arbitrer &
+  Fleksibel, mendukung konstruksi programatis &
+  Memerlukan metode pabrik statis tambahan \\[4pt]
+\texttt{@CsvFileSource}  & Primitif / \texttt{String} (dari CSV) &
+  Data terpisah dari kode, mudah dikelola &
+  Terbatas pada tipe yang dapat direpresentasikan CSV \\
+\bottomrule
+\end{longtable}
+
+% =============================================================================
+\section{Pengujian Konvensional (\textit{Non-Parameterized})}
+% =============================================================================
+
+Di samping pengujian terparameterisasi, \texttt{WalletTest} juga memuat sejumlah metode
+uji konvensional yang menggunakan anotasi \texttt{@Test} biasa.  Pengujian-pengujian ini
+menangani skenario yang bersifat tunggal dan tidak memerlukan variasi nilai masukan,
+seperti verifikasi bahwa \texttt{owner} bernilai \texttt{null} saat dompet baru dibuat,
+atau bahwa \texttt{getCards()} mengembalikan salinan defensif dan bukan referensi langsung
+ke koleksi internal.
+
+Secara khusus, metode \texttt{testGetCardsReturnSalinan} (Listing~\ref{lst:defensive})
+memverifikasi perilaku salinan defensif:
+
+\begin{lstlisting}[language=Java,
+                   caption={Verifikasi salinan defensif pada \texttt{getCards()}},
+                   label={lst:defensive}]
+@Test
+void testGetCardsReturnSalinan() {
+    wallet.addCard("KTP");
+    wallet.getCards().add("SIM");
+    assertEquals(1, wallet.getCards().size(),
+        "getCards() harus return salinan");
+}
+\end{lstlisting}
+
+Pengujian ini menambahkan sebuah kartu ke dompet, kemudian mencoba menambahkan kartu
+lain melalui daftar yang dikembalikan oleh \texttt{getCards()}.  Ekspektasi bahwa ukuran
+daftar tetap satu membuktikan bahwa modifikasi pada daftar kembalian tidak memengaruhi
+keadaan internal dompet.
+
+Adapun metode \texttt{testWalletLengkap} merupakan pengujian integrasi ringan yang
+memverifikasi kombinasi operasi: penetapan pemilik, penambahan kartu, dan penambahan uang
+tunai dalam satu skenario terpadu.
+
+% =============================================================================
+\section{Kesimpulan}
+% =============================================================================
+
+Repositori \texttt{PPPL\_Tugas1} mendemonstrasikan penerapan \textit{parameterized
+testing} secara menyeluruh menggunakan JUnit~5 Jupiter.  Melalui tiga mekanisme sumber
+data---\texttt{@ValueSource}, \texttt{@MethodSource}, dan \texttt{@CsvFileSource}---kode
+pengujian berhasil menghindari redundansi sekaligus mencakup berbagai skenario masukan
+secara sistematis.
+
+Anotasi \texttt{@ValueSource} terbukti efisien untuk validasi nilai primitif tunggal
+dengan cakupan nilai batas yang representatif.  Anotasi \texttt{@MethodSource}
+memungkinkan pengujian terhadap objek Java kompleks dengan jaminan identitas referensi
+yang diverifikasi melalui \texttt{assertSame}.  Sementara itu, \texttt{@CsvFileSource}
+mewujudkan pemisahan yang tegas antara kode dan data uji, yang mendukung prinsip
+\textit{separation of concerns} dan memudahkan pemeliharaan jangka panjang.
+
+Penggunaan siklus hidup pengujian yang tepat---\texttt{@BeforeEach} untuk inisialisasi
+dan \texttt{@AfterEach} untuk pembersihan---memastikan isolasi antaruji sehingga setiap
+kasus uji bersifat mandiri dan hasilnya dapat dipercaya.  Secara keseluruhan, praktik
+pengujian dalam proyek ini mencerminkan penerapan prinsip-prinsip \textit{clean testing}
+yang sejalan dengan standar industri pengembangan perangkat lunak modern.
+
+\end{document}
